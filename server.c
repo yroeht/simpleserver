@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <time.h>
 #include <unistd.h>
 
 #define BACKLOG 128
@@ -48,9 +49,45 @@ int accept_connexion(int sockfd)
 	return clientfd;
 }
 
+static struct timespec started_time;
+
+void start()
+{
+	clock_gettime(CLOCK_REALTIME, &started_time);
+}
+
+void stop(int fd)
+{
+	struct timespec new_time;
+	clock_gettime(CLOCK_REALTIME, &new_time);
+
+	struct timespec elapsed;
+	elapsed.tv_sec = new_time.tv_sec - started_time.tv_sec;
+	elapsed.tv_nsec = new_time.tv_nsec - started_time.tv_nsec;
+	if (new_time.tv_nsec < started_time.tv_nsec)
+	{
+		elapsed.tv_nsec += 1e9;
+		elapsed.tv_sec -= 1;
+	}
+
+	char buffer[64];
+	snprintf(buffer, sizeof(buffer), "%lu s %lu ns",
+			elapsed.tv_sec,
+			elapsed.tv_nsec);
+	write(fd, buffer, strlen(buffer));
+}
+
 static
 void process_client(int fd)
 {
+	char buffer[16] = { 0 };
+
+	read(fd, buffer, sizeof(buffer));
+
+	if (!strcmp(buffer, "start"))
+		start();
+	if (!strcmp(buffer, "stop"))
+		stop(fd);
 }
 
 int main(int argc, char **argv)
@@ -61,7 +98,7 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	int port = atoi(argv[2]);
+	int port = atoi(argv[1]);
 	if (port < 1 || port > 65535)
 	{
 		fprintf(stderr, "invalid port number %d", port);
@@ -80,22 +117,8 @@ int main(int argc, char **argv)
 		if (clientfd < 0)
 			return -1;
 
-		int pid = fork();
-		if (pid < 0)
-		{
-			fprintf(stderr, "error forking client worker process %s\n",
-					strerror(errno));
-		}
-		else if (pid)
-		{
-			close(clientfd);
-		}
-		else
-		{
-			close(sockfd);
-			process_client(clientfd);
-			return 0;
-		}
+		process_client(clientfd);
+		close(clientfd);
 	}
 }
 
