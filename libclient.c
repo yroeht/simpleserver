@@ -76,9 +76,7 @@ char *stop(const char *hostname, const char *portstr)
 
 	char buffer[128];
 	int nbbytes;
-	do {
-		nbbytes = read(sockfd, buffer, sizeof(buffer));
-	} while (!nbbytes);
+	nbbytes = read(sockfd, buffer, sizeof(buffer));
 	printf("received %d bytes: %s", nbbytes, buffer);
 
 	close(sockfd);
